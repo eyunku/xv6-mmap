@@ -12,10 +12,12 @@
 #define PROT_WRITE 0x2
 
 // Structure that represents mapped memory
-struct mappedmem {
+struct mmap_s {
     uint addr;          // Starting address of map
-    uint sz;            // Size of map
-    int flags;          // 
+    size_t sz;          // Size of map
+    int flags;          // Mapping flags
+    int prot;           // Memory read/write protection
     struct file* fp;    // File if mapping is not anonymous
     off_t offset;       // Offset into file
+    int fd;             // File descriptor of file
 };
