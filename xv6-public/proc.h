@@ -49,7 +49,7 @@ struct proc {
   struct file *ofile[NOFILE];       // Open files
   struct inode *cwd;                // Current directory
   char name[16];                    // Process name (debugging)
-  struct mmap_s *mmaps[MAXMAPS];    // Mapped memory in heap
+  struct mmap_s mmaps[MAXMAPS];    // Mapped memory in heap
   int nummaps;                      // Number of memory maps
 };
 

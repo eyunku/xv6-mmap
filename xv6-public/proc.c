@@ -112,11 +112,6 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
 
-  // Set up mapped memory strctures
-  sp -= sizeof *p->mmaps;
-  p->mmaps[MAXMAPS] = (struct mmap_s**)sp;
-  memset(p->mmaps[MAXMAPS], 0, sizeof *p->mmaps);
-
   return p;
 }
 

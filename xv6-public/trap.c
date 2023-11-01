@@ -49,29 +49,28 @@ pgflthndlr(void)
     
     if((m = mymmaps[i]) == 0)
       continue;
-    
     if(pgfltaddr < m->addr || pgfltaddr > m->eaddr + PGSIZE)
       continue;
-    if((m->flags & MAP_GROWSUP) && pgfltaddr > m->eaddr + PGSIZE){
-      pde_t *pdeg;
-      pte_t *pgtabg;
-      if(pgfltaddr > m->eaddr + PGSIZE){
-        pdeg = &pgdir[PDX(pgfltaddr + PGSIZE)];
-        if(*pdeg & PTE_P){
-          break;
-        } else {
-          pdeg = &pgdir[PDX(pgfltaddr)];
+    if (pgfltaddr > m->eaddr){
+      if(m->flags & MAP_GROWSUP){
+        pde_t *pdeg;
+        pde_t *pdeg2;
 
-        }
+        pdeg = &pgdir[PDX(pgfltaddr)];
+        pdeg2 = &pgdir[PDX(pgfltaddr + PGSIZE)];
+        if((*pdeg & PTE_P) || (*pdeg2 & PTE_P))
+          goto segfault;
+        goto allocate;
       } else {
-        pdeg = &pgdir[PDX(pgfltaddr + 2*PGSIZE)];
-        
-      }
-    }else{
-      if(pgfltaddr > m->eaddr)
         continue;
+      }
     }
+    goto allocate;
   }
+
+  if(i >= MAXMAPS)
+    goto segfault;
+
 allocate:
   pde = &pgdir[PDX(pgfltaddr)];
   if((pgtab = (pte_t*)kalloc()) == 0)
@@ -79,11 +78,12 @@ allocate:
   memset(pgtab, 0, PGSIZE);
   //TODO: write file in if not anonymous
   *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
+  return;
 
-  if(i >= MAXMAPS){
-    cprintf("Segmentation Fault\n");
-    kill(curproc->pid);
-  }
+segfault:
+  cprintf("Segmentation fault\n");
+  kill(curproc->pid);
+  return;
 }
 
 //PAGEBREAK: 41

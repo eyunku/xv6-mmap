@@ -11,7 +11,7 @@ void*
 mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
   struct proc *curproc = myproc();
-  struct mmap_s *mmap_s;
+  struct mmap_s mmap_s;
   int i;
   
   if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
@@ -22,13 +22,13 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     uint eaddr = PGROUNDUP((uint)addr + length);
     if(eaddr >= KERNBASE || (uint)addr < MMAPBASE || !((uint)addr % PGSIZE))
       return MAP_FAILED;
-    mmap_s->addr = (uint)addr;
-    mmap_s->eaddr = eaddr;
+    mmap_s.addr = (uint)addr;
+    mmap_s.eaddr = eaddr;
   } else {
     //TODO: determine non-fixed addressing
   }
   
-  // File handling
+  // File handling (open new file)
   if(!(flags & MAP_ANONYMOUS)){
     struct file *fp;
 
@@ -39,16 +39,17 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     // File and map protections must match
     if(!(fp->readable && (prot & PROT_READ)) || !(fp->writeable && (prot & PROT_WRITE)))
       return MAP_FAILED;
-    fp->off = (uint)offset;
     mmap_s->fp = fp;
     mmap_s->offset = offset;
     mmap_s->fd = fd;
   }
 
-  mmap_s->sz = length;
-  mmap_s->prot = prot;
-  mmap_s->flags = flags;
+  mmap_s.sz = length;
+  mmap_s.prot = prot;
+  mmap_s.flags = flags;
   
+  //TODO: ensure memory allocation is possible
+  //Naive allocation, no coalesce
   for(i = 0; i < MAXMAPS; i++){
     if(curproc->mmaps[i] == 0){
       curproc->mmaps[i] = mmap_s;
