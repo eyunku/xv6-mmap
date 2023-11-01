@@ -37,17 +37,16 @@ void
 pgflthndlr(void)
 {
   struct proc *curproc = myproc();
-  struct mmap_s mymmaps[MAXMAPS] = curproc->mmaps;
+  struct mmap_s *m;
   pde_t *pgdir = curproc->pgdir;
   uint pgfltaddr = rcr2();
   int i;
 
-  for(i = 0; i < MAXMAPS; i++){
-    struct mmap_s *m;
+  for(m = curproc->mmaps; m < &(curproc->mmaps[MAXMAPS]); m++){
     pde_t *pde;
     pte_t *pgtab;
     
-    if((m = &mymmaps[i]) == 0)
+    if(!m)
       continue;
     if(pgfltaddr < m->addr || pgfltaddr > m->eaddr + PGSIZE)
       continue;

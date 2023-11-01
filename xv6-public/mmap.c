@@ -6,12 +6,34 @@
 #include "proc.h"
 #include "param.h"
 
+void*
+pgalloc(void *addr, size_t length)
+{
+  struct mmap_s *m;
+  uint npage = PGROUNDUP(length) / PGSIZE;
+  int i;
+
+  for(i = 0; i < npage; i++){
+    uint caddr = PGROUNDDOWN(addr) + i*PGSIZE;
+    for(m = myproc()->mmaps; m < &(myproc()->mmaps[MAXMAPS]); m++){
+      if(!m)
+        continue;
+      if(caddr == m->addr)
+        return MAP_FAILED;
+    }
+  }
+
+  return caddr;
+}
+
 // Lazily map anonymously or file-backed into pgdir. addr must be page-aligned
 void*
 mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
   struct proc *curproc = myproc();
   struct mmap_s mmap_s;
+  uint saddr = PGROUNDDOWN((uint)addr);
+  uint eaddr;
   int i;
   
   if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
@@ -19,13 +41,26 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 
   // Determine address
   if(flags & MAP_FIXED){
-    uint eaddr = PGROUNDUP((uint)addr + length);
-    if(eaddr >= KERNBASE || (uint)addr < MMAPBASE || !((uint)addr % PGSIZE))
+    eaddr = PGROUNDUP(saddr + length);
+    if(eaddr >= KERNBASE || saddr < MMAPBASE)
       return MAP_FAILED;
-    mmap_s.addr = (uint)addr;
+    if(pgalloc((void*)saddr, length) < 0)
+      return MAP_FAILED;
+    mmap_s.addr = saddr;
     mmap_s.eaddr = eaddr;
   } else {
-    //TODO: determine non-fixed addressing
+    saddr = MMAPBASE;
+    eaddr = PGROUNDUP(saddr + length);
+    while(eaddr < KERNBASE){
+      if(pgalloc((void*)saddr, length) >= 0)
+        break;
+      saddr += PGSIZE;
+      eaddr = PGROUNDUP(saddr + length);
+    }
+    if(eaddr >= KERNBASE)
+      return MAP_FAILED;
+    mmap_s.addr = addr;
+    mmap_s.eaddr = eaddr;
   }
   
   // File handling (open new file)
