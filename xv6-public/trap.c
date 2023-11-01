@@ -7,6 +7,7 @@
 #include "x86.h"
 #include "traps.h"
 #include "spinlock.h"
+#include "mmap.h"
 
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
@@ -30,6 +31,59 @@ void
 idtinit(void)
 {
   lidt(idt, sizeof(idt));
+}
+
+void
+pgflthndlr(void)
+{
+  struct proc *curproc = myproc();
+  struct mmap_s *mymmaps[MAXMAPS] = curproc->mmaps;
+  pde_t *pgdir = curproc->pgdir;
+  uint pgfltaddr = rcr2();
+  int i;
+
+  for(i = 0; i < MAXMAPS; i++){
+    struct mmap_s *m;
+    pde_t *pde;
+    pte_t *pgtab;
+    
+    if((m = mymmaps[i]) == 0)
+      continue;
+    
+    if(pgfltaddr < m->addr || pgfltaddr > m->eaddr + PGSIZE)
+      continue;
+    if((m->flags & MAP_GROWSUP) && pgfltaddr > m->eaddr + PGSIZE){
+      pde_t *pdeg;
+      pte_t *pgtabg;
+      if(pgfltaddr > m->eaddr + PGSIZE){
+        pdeg = &pgdir[PDX(pgfltaddr + PGSIZE)];
+        if(*pdeg & PTE_P){
+          break;
+        } else {
+          pdeg = &pgdir[PDX(pgfltaddr)];
+
+        }
+      } else {
+        pdeg = &pgdir[PDX(pgfltaddr + 2*PGSIZE)];
+        
+      }
+    }else{
+      if(pgfltaddr > m->eaddr)
+        continue;
+    }
+  }
+allocate:
+  pde = &pgdir[PDX(pgfltaddr)];
+  if((pgtab = (pte_t*)kalloc()) == 0)
+    break;
+  memset(pgtab, 0, PGSIZE);
+  //TODO: write file in if not anonymous
+  *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
+
+  if(i >= MAXMAPS){
+    cprintf("Segmentation Fault\n");
+    kill(curproc->pid);
+  }
 }
 
 //PAGEBREAK: 41
@@ -78,7 +132,7 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
   case T_PGFLT:
-    // TODO: implement page fault handling
+    pgflthndlr();
   //PAGEBREAK: 13
   default:
     if(myproc() == 0 || (tf->cs&3) == 0){

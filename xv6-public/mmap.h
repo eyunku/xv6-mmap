@@ -13,7 +13,8 @@
 
 // Structure that represents mapped memory
 struct mmap_s {
-    uint addr;          // Starting address of map
+    uint addr;          // Starting address of map, page-aligned
+    uint eaddr;         // Ending addres of map, page-aligned
     size_t sz;          // Size of map
     int flags;          // Mapping flags
     int prot;           // Memory read/write protection
