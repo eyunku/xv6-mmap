@@ -200,6 +200,9 @@ fork(void)
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
+  // Copy memory maps from proc.
+  copymmap();
+
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 

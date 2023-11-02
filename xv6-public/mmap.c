@@ -155,3 +155,9 @@ munmap(void* addr, size_t length)
 
   return 0;
 }
+
+struct mmap_s*
+copymmap()
+{
+
+}
