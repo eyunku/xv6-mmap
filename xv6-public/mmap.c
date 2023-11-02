@@ -8,24 +8,49 @@
 #include "file.h"
 
 void*
-pgalloc(void *addr, size_t length)
+mapalloc(void *addr, size_t length)
 {
   struct mmap_s *m;
   uint npage = PGROUNDUP(length) / PGSIZE;
-  uint caddr;
+  uint pgaddr;
   int i;
 
   for(i = 0; i < npage; i++){
-    caddr = PGROUNDDOWN((uint)addr) + i*PGSIZE;
+    pgaddr = PGROUNDDOWN((uint)addr) + i*PGSIZE;
     for(m = myproc()->mmaps; m < &(myproc()->mmaps[MAXMAPS]); m++){
       if(!m)
         continue;
-      if(caddr == m->addr)
+      if(pgaddr == m->addr)
         return MAP_FAILED;
     }
   }
 
-  return caddr;
+  return (void*)pgaddr;
+}
+
+void
+mapfree(struct mmap_s *m)
+{
+  struct proc *curproc = myproc();
+  uint pa, npage;
+  pde_t *pde;
+  pte_t *pte;
+  int i;
+
+  npage = PGROUNDUP(m->sz) / PGSIZE;
+  for(i = 0; i < npage; i++){
+    uint pgaddr = m->addr + i*PGSIZE;
+    pde = &(curproc->pgdir[PDX(pgaddr)]);
+    if(!(*pde & PTE_P))
+      panic("double free");
+    pte = (pte_t*)P2V(PTE_ADDR(*pde));
+    pa = PTE_ADDR(*pte);
+    if(pa == 0)
+      panic("kfree");
+    char *v = P2V(pa);
+    kfree(v);
+    *pte = 0;
+  }
 }
 
 // Lazily map anonymously or file-backed into pgdir.
@@ -46,7 +71,7 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     eaddr = PGROUNDUP(saddr + length);
     if(eaddr >= KERNBASE || saddr < MMAPBASE)
       return MAP_FAILED;
-    if(pgalloc((void*)saddr, length) < 0)
+    if(mapalloc((void*)saddr, length) < 0)
       return MAP_FAILED;
     mmap_s.addr = saddr;
     mmap_s.eaddr = eaddr;
@@ -54,7 +79,7 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     saddr = MMAPBASE;
     eaddr = PGROUNDUP(saddr + length);
     while(eaddr < KERNBASE){
-      if(pgalloc((void*)saddr, length) >= 0)
+      if(mapalloc((void*)saddr, length) >= 0)
         break;
       saddr += PGSIZE;
       eaddr = PGROUNDUP(saddr + length);
@@ -65,15 +90,15 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     mmap_s.eaddr = eaddr;
   }
   if(!(flags & MAP_ANONYMOUS)){
-    //TODO: file handling, following code is incorrect
+    //TODO: file handling, commented code is incorrect
     //Should reopen same file that fd points to, so the user file
     //is not changed
 
 
-    // struct file *fp;
+    struct file *fp;
 
-    // if(offset < 0)
-    //   return MAP_FAILED;
+    if(offset < 0)
+      return MAP_FAILED;
     // if(fd < 0 || fd >= NOFILE || (fp=curproc->ofile[fd]) == 0)
     //   return MAP_FAILED;
     // // File and map protections must match
@@ -87,9 +112,6 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   mmap_s.sz = length;
   mmap_s.prot = prot;
   mmap_s.flags = flags;
-  
-  //TODO: ensure memory allocation is possible
-  //Naive allocation, no coalesce
   for(i = 0; i < MAXMAPS; i++){
     if(curproc->mmaps[i] == 0){
       curproc->mmaps[i] = mmap_s;
@@ -115,10 +137,15 @@ munmap(void* addr, size_t length)
     return -1;
     
   for(i = 0; i < MAXMAPS; i++){
-    if((curproc->mmaps[i])->addr == (uint)addr){
-      if((curproc->mmaps[i])->sz != length)
+    struct mmap_s *m;
+
+    if((m = &curproc->mmaps[i]) == 0)
+      continue;
+    if(m->addr == (uint)addr){
+      if(m->sz != length)
         return -1;
-      curproc->mmaps[i] = (struct mmap_s*)0;
+      mapfree(m);
+      curproc->mmaps[i] = 0;
       curproc->nummaps -= 1;
     }
   }
