@@ -5,16 +5,18 @@
 #include "mmu.h"
 #include "proc.h"
 #include "param.h"
+#include "file.h"
 
 void*
 pgalloc(void *addr, size_t length)
 {
   struct mmap_s *m;
   uint npage = PGROUNDUP(length) / PGSIZE;
+  uint caddr;
   int i;
 
   for(i = 0; i < npage; i++){
-    uint caddr = PGROUNDDOWN(addr) + i*PGSIZE;
+    caddr = PGROUNDDOWN((uint)addr) + i*PGSIZE;
     for(m = myproc()->mmaps; m < &(myproc()->mmaps[MAXMAPS]); m++){
       if(!m)
         continue;
@@ -26,7 +28,8 @@ pgalloc(void *addr, size_t length)
   return caddr;
 }
 
-// Lazily map anonymously or file-backed into pgdir. addr must be page-aligned
+// Lazily map anonymously or file-backed into pgdir.
+// addr must be page-aligned.
 void*
 mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
@@ -39,7 +42,6 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
     return MAP_FAILED;
 
-  // Determine address
   if(flags & MAP_FIXED){
     eaddr = PGROUNDUP(saddr + length);
     if(eaddr >= KERNBASE || saddr < MMAPBASE)
@@ -62,21 +64,24 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     mmap_s.addr = addr;
     mmap_s.eaddr = eaddr;
   }
-  
-  // File handling (open new file)
   if(!(flags & MAP_ANONYMOUS)){
-    struct file *fp;
+    //TODO: file handling, following code is incorrect
+    //Should reopen same file that fd points to, so the user file
+    //is not changed
 
-    if(offset < 0)
-      return MAP_FAILED;
-    if(fd < 0 || fd >= NOFILE || (fp=curproc->ofile[fd]) == 0)
-      return MAP_FAILED;
-    // File and map protections must match
-    if(!(fp->readable && (prot & PROT_READ)) || !(fp->writeable && (prot & PROT_WRITE)))
-      return MAP_FAILED;
-    mmap_s->fp = fp;
-    mmap_s->offset = offset;
-    mmap_s->fd = fd;
+
+    // struct file *fp;
+
+    // if(offset < 0)
+    //   return MAP_FAILED;
+    // if(fd < 0 || fd >= NOFILE || (fp=curproc->ofile[fd]) == 0)
+    //   return MAP_FAILED;
+    // // File and map protections must match
+    // if(!(fp->readable && (prot & PROT_READ)) || !(fp->writable && (prot & PROT_WRITE)))
+    //   return MAP_FAILED;
+    // mmap_s.fp = fp;
+    // mmap_s.offset = offset;
+    // mmap_s.fd = fd;
   }
 
   mmap_s.sz = length;
@@ -92,14 +97,14 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
       break;
     }
   }
-  // Exceeds maximum number of maps
   if(i >= MAXMAPS)
     return MAP_FAILED;
 
   return addr;
 }
 
-// Naive unmap that doesn't allow unmapping across multiple maps
+// Naive unmap that only allows unmapping of a single map.
+// Will cause heap fragmentation.
 int
 munmap(void* addr, size_t length)
 {

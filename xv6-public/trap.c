@@ -37,16 +37,14 @@ void
 pgflthndlr(void)
 {
   struct proc *curproc = myproc();
-  struct mmap_s *m;
   pde_t *pgdir = curproc->pgdir;
   uint pgfltaddr = rcr2();
   int i;
 
-  for(m = curproc->mmaps; m < &(curproc->mmaps[MAXMAPS]); m++){
-    pde_t *pde;
-    pte_t *pgtab;
-    
-    if(!m)
+  for(i = 0; i < MAXMAPS; i++){
+    struct mmap_s *m;
+
+    if((m = &curproc->mmaps[i]) == 0)
       continue;
     if(pgfltaddr < m->addr || pgfltaddr > m->eaddr + PGSIZE)
       continue;
@@ -71,9 +69,12 @@ pgflthndlr(void)
     goto segfault;
 
 allocate:
+  pde_t *pde;
+  pte_t *pgtab;
+  
   pde = &pgdir[PDX(pgfltaddr)];
   if((pgtab = (pte_t*)kalloc()) == 0)
-    break;
+    goto segfault;
   memset(pgtab, 0, PGSIZE);
   //TODO: write file in if not anonymous
   *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
