@@ -86,19 +86,19 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     }
     if(eaddr >= KERNBASE)
       return MAP_FAILED;
-    mmap_s.addr = addr;
+    mmap_s.addr = saddr;
     mmap_s.eaddr = eaddr;
   }
   if(!(flags & MAP_ANONYMOUS)){
-    //TODO: file handling, commented code is incorrect
+    //TODO: file handling, following code is incorrect
     //Should reopen same file that fd points to, so the user file
     //is not changed
 
 
-    struct file *fp;
+    // struct file *fp;
 
-    if(offset < 0)
-      return MAP_FAILED;
+    // if(offset < 0)
+    //   return MAP_FAILED;
     // if(fd < 0 || fd >= NOFILE || (fp=curproc->ofile[fd]) == 0)
     //   return MAP_FAILED;
     // // File and map protections must match
@@ -159,5 +159,6 @@ munmap(void* addr, size_t length)
 struct mmap_s*
 copymmap()
 {
-
+  // temp to suppress error
+  return (struct mmap_s*)0;
 }
