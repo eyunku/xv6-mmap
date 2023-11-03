@@ -21,4 +21,5 @@ struct mmap_s {
     struct file* fp;    // File if mapping is not anonymous
     off_t offset;       // Offset into file
     int fd;             // File descriptor of file
+    int mapped;          // If memory is mapped
 };

@@ -5,12 +5,26 @@
 #include "proc.h"
 #include "param.h"
 
+void
+mapclr(struct mmap_s *m)
+{
+  m->addr = 0;
+  m->eaddr = 0;
+  m->sz = 0;
+  m->flags = 0;
+  m->prot = 0;
+  m->fp = (struct file*)0;
+  m->offset = 0;
+  m->fd = 0;
+  m->mapped = 0;
+}
+
 void*
 mapalloc(void *addr, size_t length)
 {
   struct mmap_s *m;
   uint npage = PGROUNDUP(length) / PGSIZE;
-  uint pgaddr;
+  uint pgaddr = 0;
   int i;
 
   for(i = 0; i < npage; i++){
@@ -18,8 +32,10 @@ mapalloc(void *addr, size_t length)
     for(m = myproc()->mmaps; m < &(myproc()->mmaps[MAXMAPS]); m++){
       if(!m)
         continue;
-      if(pgaddr == m->addr)
+      if(pgaddr == m->addr){
+        mapclr(m);
         return MAP_FAILED;
+      }
     }
   }
 
@@ -61,16 +77,34 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   uint saddr = PGROUNDDOWN((uint)addr);
   uint eaddr;
   int i;
-  
-  if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
+
+  for(i = 0; i < MAXMAPS; i++){
+    if(!(curproc->mmaps[i].mapped)){
+      mmap_s = curproc->mmaps[i];
+      curproc->nummaps++;
+      break;
+    }
+  }
+  if(i >= MAXMAPS){
+    mapclr(&mmap_s);
     return MAP_FAILED;
+  }
+  
+  if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED)){
+    mapclr(&mmap_s);
+    return MAP_FAILED;
+  }
 
   if(flags & MAP_FIXED){
     eaddr = PGROUNDUP(saddr + length);
-    if(eaddr >= KERNBASE || saddr < MMAPBASE)
+    if(eaddr >= KERNBASE || saddr < MMAPBASE){
+      mapclr(&mmap_s);
       return MAP_FAILED;
-    if(mapalloc((void*)saddr, length) < 0)
+    }
+    if(mapalloc((void*)saddr, length) < 0){
+      mapclr(&mmap_s);
       return MAP_FAILED;
+    }
     mmap_s.addr = saddr;
     mmap_s.eaddr = eaddr;
   } else {
@@ -82,8 +116,10 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
       saddr += PGSIZE;
       eaddr = PGROUNDUP(saddr + length);
     }
-    if(eaddr >= KERNBASE)
+    if(eaddr >= KERNBASE){
+      mapclr(&mmap_s);
       return MAP_FAILED;
+    }
     mmap_s.addr = saddr;
     mmap_s.eaddr = eaddr;
   }
@@ -110,15 +146,6 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   mmap_s.sz = length;
   mmap_s.prot = prot;
   mmap_s.flags = flags;
-  for(i = 0; i < MAXMAPS; i++){
-    if(curproc->mmaps[i] == 0){
-      curproc->mmaps[i] = mmap_s;
-      curproc->nummaps++;
-      break;
-    }
-  }
-  if(i >= MAXMAPS)
-    return MAP_FAILED;
 
   return addr;
 }
@@ -143,7 +170,6 @@ munmap(void* addr, size_t length)
       if(m->sz != length)
         return -1;
       mapfree(m);
-      curproc->mmaps[i] = 0;
       curproc->nummaps -= 1;
     }
   }
