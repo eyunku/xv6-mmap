@@ -452,13 +452,13 @@ sys_mmap(void)
   int prot, flags, fd;
   off_t offset;
 
-  if (argptr(0, (void*)&addr, sizeof(void*))
-    || argint(1, &length)
-    || argint(2, &prot)
-    || argint(3, &flags)
-    || argint(4, &fd)
+  if (argptr(0, (void*)&addr, sizeof(void*)) < 0
+    || argint(1, &length) < 0
+    || argint(2, &prot) < 0
+    || argint(3, &flags) < 0
+    || argint(4, &fd) < 0
     || argint(5, &offset) < 0) {
-    return -1;  // Handle errors as needed
+    return -1;
   }
 
   return mmap(addr, length, prot, flags, fd, offset);
@@ -470,8 +470,8 @@ sys_munmap(void)
   void *addr;
   size_t length;
 
-  if (argptr(0, (void*)&addr, sizeof(void*)) || argint(1, &length))
-    return -1;  // Handle errors as needed
+  if (argptr(0, (void*)&addr, sizeof(void*)) < 0 || argint(1, &length) < 0)
+    return -1;
 
   return munmap(addr, length);
 }
