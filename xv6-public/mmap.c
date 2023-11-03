@@ -1,11 +1,9 @@
-#include "mmap.h"
 #include "types.h"
 #include "defs.h"
 #include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
 #include "param.h"
-#include "file.h"
 
 void*
 mapalloc(void *addr, size_t length)
