@@ -153,40 +153,54 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   mmap_s.flags = flags;
   mmap_s.mapped = 1;
   
-  // cprintf("mmap: Successfully mapped memory - addr: 0x%x, length: %d, prot: %d, flags: %d\n", addr, length, prot, flags);
+  // Store the mmap_s structure in myproc() after successful mapping
+  curproc->mmaps[i] = mmap_s;
+
+  cprintf("mmap: Successfully mapped memory - addr: 0x%x, length: %d, prot: %d, flags: %d\n", addr, length, prot, flags);
 
   return addr;
 }
 
 // Naive unmap that only allows unmapping of a single map.
 // Will cause heap fragmentation.
-int
-munmap(void* addr, size_t length)
-{
+int 
+munmap(void* addr, size_t length) {
   struct proc *curproc = myproc();
+  struct mmap_s m;
   int i;
 
-  if((uint)addr % PGSIZE != 0)
+  if ((uint)addr % PGSIZE != 0)
     return -1;
-    
-  for(i = 0; i < MAXMAPS; i++){
-    struct mmap_s *m;
 
-    if((m = &curproc->mmaps[i]) == 0)
+  for (i = 0; i < MAXMAPS; i++) {
+    m = curproc->mmaps[i];
+    
+    // Print information about the current m
+    cprintf("mmaps[%d]: addr=0x%x, sz=%u, mapped=%d\n", i, m.addr, m.sz, m.mapped);
+    
+    if (!m.mapped) // Check if the mmap slot is empty
       continue;
-    if(m->addr == (uint)addr){
-      if(m->sz != length)
+
+    if (m.addr == (uint)addr) {
+      if (m.sz != length)
         return -1;
-      mapfree(m);
+
+      cprintf("Found one!\n");
+      // mapfree(&m); // Pass a pointer to the copied struct
       curproc->nummaps -= 1;
+      curproc->mmaps[i] = (struct mmap_s){0}; // Clear the mmap entry
+      return 0;
     }
   }
 
-  if(i >= MAXMAPS)
+  if (i >= MAXMAPS) {
+    cprintf("No maps to free\n");
     return -1;
+  }
 
   return 0;
 }
+
 
 struct mmap_s*
 copymmap()
