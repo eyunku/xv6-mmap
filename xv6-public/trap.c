@@ -133,6 +133,7 @@ trap(struct trapframe *tf)
     break;
   case T_PGFLT:
     pgflthndlr();
+    break;
   //PAGEBREAK: 13
   default:
     if(myproc() == 0 || (tf->cs&3) == 0){
