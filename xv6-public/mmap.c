@@ -35,7 +35,7 @@ mapalloc(void *addr, size_t length)
   for(i = 0; i < npage; i++){
     pgaddr = PGROUNDDOWN((uint)addr) + i*PGSIZE;
     for(m = myproc()->mmaps; m < &(myproc()->mmaps[MAXMAPS]); m++){
-      if(!m)
+      if(!m->mapped)
         continue;
       if(pgaddr == m->addr){
         mapclr(m);
@@ -119,7 +119,7 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
       if(mapalloc((void*)saddr, length) >= 0)
         break;
       saddr += PGSIZE;
-      eaddr = PGROUNDUP(saddr + length);
+      eaddr += PGSIZE;
     }
     if(eaddr >= KERNBASE){
       mapclr(&mmap_s);
@@ -151,6 +151,7 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   mmap_s.sz = length;
   mmap_s.prot = prot;
   mmap_s.flags = flags;
+  mmap_s.mapped = 1;
 
   return addr;
 }

@@ -38,23 +38,23 @@ pgflthndlr(void)
 {
   struct proc *curproc = myproc();
   pde_t *pgdir = curproc->pgdir;
-  uint pgfltaddr = rcr2();
+  uint pgfltva = rcr2();
   int i;
 
   for(i = 0; i < MAXMAPS; i++){
     struct mmap_s *m;
 
-    if((m = &curproc->mmaps[i]) == 0)
+    if(!(m = &curproc->mmaps[i])->mapped)
       continue;
-    if(pgfltaddr < m->addr || pgfltaddr > m->eaddr + PGSIZE)
+    if(pgfltva < m->addr || pgfltva > m->eaddr + PGSIZE)
       continue;
-    if (pgfltaddr > m->eaddr){
+    if (pgfltva > m->eaddr){
       if(m->flags & MAP_GROWSUP){
         pde_t *pdeg;
         pde_t *pdeg2;
 
-        pdeg = &pgdir[PDX(pgfltaddr)];
-        pdeg2 = &pgdir[PDX(pgfltaddr + PGSIZE)];
+        pdeg = &pgdir[PDX(pgfltva)];
+        pdeg2 = &pgdir[PDX(pgfltva + PGSIZE)];
         if((*pdeg & PTE_P) || (*pdeg2 & PTE_P))
           goto segfault;
         goto allocate;
@@ -72,7 +72,7 @@ allocate:
   pde_t *pde;
   pte_t *pgtab;
   
-  pde = &pgdir[PDX(pgfltaddr)];
+  pde = &pgdir[PDX(pgfltva)];
   if((pgtab = (pte_t*)kalloc()) == 0)
     goto segfault;
   memset(pgtab, 0, PGSIZE);
