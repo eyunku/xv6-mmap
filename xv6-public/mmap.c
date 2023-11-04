@@ -163,28 +163,28 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 
 // Naive unmap that only allows unmapping of a single map.
 // Will cause heap fragmentation.
-int
-munmap(void * addr, size_t length) {
-  struct proc * curproc = myproc();
-  struct mmap_s m;
+int 
+munmap(void *addr, size_t length) {
+  struct proc *curproc = myproc();
+  struct mmap_s *m;
   int i;
 
-  if ((uint) addr % PGSIZE != 0)
+  if ((uint)addr % PGSIZE != 0)
     return -1;
 
   for (i = 0; i < MAXMAPS; i++) {
-    m = curproc -> mmaps[i];
+    m = &curproc->mmaps[i];
 
-    if (!m.mapped)
+    if (!m->mapped)
       continue;
 
-    if (m.addr == (uint) addr) {
-      if (m.sz != length)
+    if (m->addr == (uint)addr) {
+      if (m->sz != length)
         return -1;
 
-      //mapfree(&m);
-      curproc -> nummaps -= 1;
-      curproc -> mmaps[i] = (struct mmap_s) {0};
+      //mapfree(m);
+      curproc->nummaps -= 1;
+      curproc->mmaps[i] = (struct mmap_s){0};
       return 0;
     }
   }

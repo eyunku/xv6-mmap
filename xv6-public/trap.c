@@ -33,29 +33,28 @@ idtinit(void)
   lidt(idt, sizeof(idt));
 }
 
-void
-pgflthndlr(void)
-{
+void 
+pgflthndlr(void) {
   struct proc *curproc = myproc();
   pde_t *pgdir = curproc->pgdir;
   uint pgfltva = rcr2();
   int i;
 
-  for(i = 0; i < MAXMAPS; i++){
-    struct mmap_s m = curproc->mmaps[i];
+  for (i = 0; i < MAXMAPS; i++) {
+    struct mmap_s *m = &curproc->mmaps[i];
 
-    if(!m.mapped)
+    if (!m->mapped)
       continue;
-    if(pgfltva < m.addr || pgfltva > m.eaddr + PGSIZE)
+    if (pgfltva < m->addr || pgfltva > m->eaddr + PGSIZE)
       continue;
-    if (pgfltva > m.eaddr){
-      if(m.flags & MAP_GROWSUP){
+    if (pgfltva > m->eaddr) {
+      if (m->flags & MAP_GROWSUP) {
         pde_t *pdeg;
         pde_t *pdeg2;
 
         pdeg = &pgdir[PDX(pgfltva)];
         pdeg2 = &pgdir[PDX(pgfltva + PGSIZE)];
-        if((*pdeg & PTE_P) || (*pdeg2 & PTE_P))
+        if ((*pdeg & PTE_P) || (*pdeg2 & PTE_P))
           goto segfault;
         goto allocate;
       } else {
