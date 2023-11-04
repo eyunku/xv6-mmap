@@ -152,6 +152,8 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   mmap_s.prot = prot;
   mmap_s.flags = flags;
   mmap_s.mapped = 1;
+  
+  // cprintf("mmap: Successfully mapped memory - addr: 0x%x, length: %d, prot: %d, flags: %d\n", addr, length, prot, flags);
 
   return addr;
 }
@@ -164,7 +166,7 @@ munmap(void* addr, size_t length)
   struct proc *curproc = myproc();
   int i;
 
-  if((uint)addr % PGSIZE == 0)
+  if((uint)addr % PGSIZE != 0)
     return -1;
     
   for(i = 0; i < MAXMAPS; i++){

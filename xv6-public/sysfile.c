@@ -467,9 +467,7 @@ sys_mmap(void)
 
   // cprintf("sys_mmap: mmap succeeded. addr = %p, length = %u, prot = %d, flags = %d, fd = %d, offset = %lld\n", addr, length, prot, flags, fd, offset);
   
-  if(mmap(addr, length, prot, flags, fd, offset) < 0)
-    return -1;
-  return 0;
+  return (int) mmap(addr, length, prot, flags, fd, offset);
 }
 
 int
@@ -488,5 +486,5 @@ sys_munmap(void)
 
   // cprintf("sys_munmap: munmap succeeded. addr = %p, length = %u\n", addr, length);
 
-  return munmap(addr, length);
+  return (int) munmap(addr, length);
 }
