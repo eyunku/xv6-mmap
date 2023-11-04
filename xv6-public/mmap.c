@@ -2,8 +2,13 @@
 #include "defs.h"
 #include "memlayout.h"
 #include "mmu.h"
-#include "proc.h"
+#include "mmap.h"
 #include "param.h"
+#include "spinlock.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
+#include "proc.h"
 
 void
 mapclr(struct mmap_s *m)

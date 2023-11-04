@@ -4,6 +4,7 @@
 #include "x86.h"
 #include "memlayout.h"
 #include "mmu.h"
+#include "mmap.h"
 #include "proc.h"
 #include "elf.h"
 

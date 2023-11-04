@@ -9,13 +9,13 @@
 #include "param.h"
 #include "stat.h"
 #include "mmu.h"
-#include "proc.h"
 #include "fs.h"
 #include "spinlock.h"
 #include "sleeplock.h"
 #include "file.h"
 #include "fcntl.h"
 #include "mmap.h"
+#include "proc.h"
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
@@ -453,15 +453,17 @@ sys_mmap(void)
   off_t offset;
 
   if (argptr(0, (void*)&addr, sizeof(void*)) < 0
-    || argint(1, &length) < 0
+    || argint(1, (int*)&length) < 0
     || argint(2, &prot) < 0
     || argint(3, &flags) < 0
     || argint(4, &fd) < 0
-    || argint(5, &offset) < 0) {
+    || argint(5, (int*)&offset) < 0) {
     return -1;
   }
 
-  return mmap(addr, length, prot, flags, fd, offset);
+  if(mmap(addr, length, prot, flags, fd, offset) < 0)
+    return -1;
+  return 0;
 }
 
 int
@@ -470,7 +472,7 @@ sys_munmap(void)
   void *addr;
   size_t length;
 
-  if (argptr(0, (void*)&addr, sizeof(void*)) < 0 || argint(1, &length) < 0)
+  if (argptr(0, (void*)&addr, sizeof(void*)) < 0 || argint(1, (int*)&length) < 0)
     return -1;
 
   return munmap(addr, length);

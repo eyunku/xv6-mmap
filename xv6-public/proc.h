@@ -1,6 +1,3 @@
-#include "mmap.h"  // Include the header file that defines struct mmap_s
-#include "param.h"
-
 // Per-CPU state
 struct cpu {
   uchar apicid;                // Local APIC ID

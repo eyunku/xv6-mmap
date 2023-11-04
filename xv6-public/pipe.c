@@ -2,6 +2,7 @@
 #include "defs.h"
 #include "param.h"
 #include "mmu.h"
+#include "mmap.h"
 #include "proc.h"
 #include "fs.h"
 #include "spinlock.h"

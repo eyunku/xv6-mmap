@@ -4,9 +4,9 @@
 #include "memlayout.h"
 #include "mmu.h"
 #include "x86.h"
+#include "mmap.h"
 #include "proc.h"
 #include "spinlock.h"
-#include "mmap.h"
 
 struct {
   struct spinlock lock;

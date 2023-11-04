@@ -9,6 +9,7 @@
 #include "fs.h"
 #include "file.h"
 #include "mmu.h"
+#include "mmap.h"
 #include "proc.h"
 #include "x86.h"
 
