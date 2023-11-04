@@ -42,14 +42,14 @@ pgflthndlr(void)
   int i;
 
   for(i = 0; i < MAXMAPS; i++){
-    struct mmap_s *m;
+    struct mmap_s m = curproc->mmaps[i];
 
-    if(!(m = &curproc->mmaps[i])->mapped)
+    if(!m.mapped)
       continue;
-    if(pgfltva < m->addr || pgfltva > m->eaddr + PGSIZE)
+    if(pgfltva < m.addr || pgfltva > m.eaddr + PGSIZE)
       continue;
-    if (pgfltva > m->eaddr){
-      if(m->flags & MAP_GROWSUP){
+    if (pgfltva > m.eaddr){
+      if(m.flags & MAP_GROWSUP){
         pde_t *pdeg;
         pde_t *pdeg2;
 

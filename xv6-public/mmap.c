@@ -182,11 +182,9 @@ munmap(void * addr, size_t length) {
       if (m.sz != length)
         return -1;
 
-      mapfree( & m);
+      //mapfree(&m);
       curproc -> nummaps -= 1;
-      curproc -> mmaps[i] = (struct mmap_s) {
-        0
-      };
+      curproc -> mmaps[i] = (struct mmap_s) {0};
       return 0;
     }
   }
