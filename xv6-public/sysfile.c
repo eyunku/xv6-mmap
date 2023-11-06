@@ -447,44 +447,33 @@ sys_pipe(void)
 int 
 sys_mmap(void)
 {
-  int addr_int;  // Temporary integer variable to hold the addr argument
-  void *addr;    // This will be the final void* address
+  int addr_int;
+  int addr;
   size_t length;
   int prot, flags, fd;
   off_t offset;
 
-  if (argint(0, &addr_int) < 0
+  if(argint(0, &addr) < 0
     || argint(1, (int*)&length) < 0
     || argint(2, &prot) < 0
     || argint(3, &flags) < 0
     || argint(4, &fd) < 0
-    || argint(5, (int*)&offset) < 0) {
+    || argint(5, (int*)&offset) < 0){
     return -1;
   }
-
-  // Cast the integer addr to a void pointer
-  addr = (void*)addr_int;
-
-  // cprintf("sys_mmap: mmap succeeded. addr = %p, length = %u, prot = %d, flags = %d, fd = %d, offset = %lld\n", addr, length, prot, flags, fd, offset);
   
-  return (int) mmap(addr, length, prot, flags, fd, offset);
+  return (int)(mmap((void*)addr, length, prot, flags, fd, offset));
 }
 
 int
 sys_munmap(void)
 {
-  int addr_int;  // Temporary integer variable to hold the addr argument
-  void *addr;    // This will be the final void* address
+  int addr;
   size_t length;
 
-  if (argint(0, &addr_int) < 0 || argint(1, (int*)&length) < 0) {
+  if(argint(0, &addr) < 0 || argint(1, (int*)&length) < 0){
     return -1;
   }
 
-  // Cast the integer addr to a void pointer
-  addr = (void*)addr_int;
-
-  // cprintf("sys_munmap: munmap succeeded. addr = %p, length = %u\n", addr, length);
-
-  return (int) munmap(addr, length);
+  return (int)(munmap((void*)addr, length));
 }
