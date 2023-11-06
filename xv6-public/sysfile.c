@@ -447,7 +447,6 @@ sys_pipe(void)
 int 
 sys_mmap(void)
 {
-  int addr_int;
   int addr;
   size_t length;
   int prot, flags, fd;

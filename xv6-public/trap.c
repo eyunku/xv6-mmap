@@ -38,10 +38,11 @@ pgflthndlr(void) {
   struct proc *curproc = myproc();
   pde_t *pgdir = curproc->pgdir;
   uint pgfltva = rcr2();
+  struct mmap_s *m;
   int i;
 
   for (i = 0; i < MAXMAPS; i++) {
-    struct mmap_s *m = &curproc->mmaps[i];
+    m = &curproc->mmaps[i];
 
     if (!m->mapped)
       continue;
@@ -68,15 +69,38 @@ pgflthndlr(void) {
     goto segfault;
 
 allocate:
+  void* va = (void*)PGROUNDDOWN((uint)pgfltva);
+  void* pa = (void*)kalloc();
   pde_t *pde;
-  pte_t *pgtab;
+  pte_t *pte;
+  int prot = 0;
   
-  pde = &pgdir[PDX(pgfltva)];
-  if((pgtab = (pte_t*)kalloc()) == 0)
+  if(!pa)
     goto segfault;
-  memset(pgtab, 0, PGSIZE);
-  //TODO: write file in if not anonymous
-  *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
+  if(m->prot & PROT_READ)
+    prot = prot | PTE_U;
+  if(m->prot & PROT_WRITE)
+    prot = prot | PTE_W;
+  while((uint)va < m->eaddr){
+    pde = &pgdir[PDX(va)];
+    if(*pde & PTE_P){
+      pte = (pte_t*)P2V(PTE_ADDR(*pde));
+    } else {
+      if((pte = (pte_t*)kalloc()) == 0)
+        goto segfault;
+      memset(pte, 0, PGSIZE);
+      *pde = V2P(pte) | PTE_P | PTE_W | PTE_U;
+    }
+    if(*pte & PTE_P)
+      panic("remap");
+    *pte = (uint)pa | prot | PTE_P;
+    va += PGSIZE;
+    pa += PGSIZE;
+  }
+
+  if(!(m->flags & MAP_ANONYMOUS)){
+
+  }
   return;
 
 segfault:

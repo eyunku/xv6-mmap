@@ -13,13 +13,13 @@
 void
 mapclr(struct mmap_s *m)
 {
-  m->addr = 0;
-  m->eaddr = 0;
-  m->sz = 0;
+  m->addr = (uint)0;
+  m->eaddr = (uint)0;
+  m->sz = (size_t)0;
   m->flags = 0;
   m->prot = 0;
   m->fp = (struct file*)0;
-  m->offset = 0;
+  m->offset = (off_t)0;
   m->fd = 0;
   m->mapped = 0;
 }
@@ -27,24 +27,20 @@ mapclr(struct mmap_s *m)
 void*
 mapalloc(void *addr, size_t length)
 {
-  struct mmap_s *m;
-  uint npage = PGROUNDUP(length) / PGSIZE;
-  uint pgaddr = 0;
+  struct proc *curproc = myproc();
+  uint saddr = PGROUNDDOWN((uint)addr);
+  uint eaddr = PGROUNDUP(saddr + length);
   int i;
 
-  for(i = 0; i < npage; i++){
-    pgaddr = PGROUNDDOWN((uint)addr) + i*PGSIZE;
-    for(m = myproc()->mmaps; m < &(myproc()->mmaps[MAXMAPS]); m++){
-      if(!m->mapped)
-        continue;
-      if(pgaddr == m->addr){
-        mapclr(m);
-        return MAP_FAILED;
-      }
+  for(i = 0; i < MAXMAPS; i++){
+    struct mmap_s *m = &curproc->mmaps[i];
+    if(saddr >= m->addr || eaddr < m->eaddr){
+      mapclr(m);
+      return MAP_FAILED;
     }
   }
 
-  return (void*)pgaddr;
+  return addr;
 }
 
 void
@@ -78,85 +74,55 @@ void*
 mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
   struct proc *curproc = myproc();
-  struct mmap_s mmap_s;
+  struct mmap_s *mmap_s;
   uint saddr = PGROUNDDOWN((uint)addr);
-  uint eaddr;
+  uint eaddr = PGROUNDUP(saddr + length);
   int i;
 
   for(i = 0; i < MAXMAPS; i++){
     if(!(curproc->mmaps[i].mapped)){
-      mmap_s = curproc->mmaps[i];
+      mmap_s = &curproc->mmaps[i];
       curproc->nummaps++;
       break;
     }
   }
-  if(i >= MAXMAPS){
-    mapclr(&mmap_s);
+  if(i >= MAXMAPS)
     return MAP_FAILED;
-  }
   
   if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED)){
-    mapclr(&mmap_s);
+    mapclr(mmap_s);
     return MAP_FAILED;
   }
 
   if(flags & MAP_FIXED){
-    eaddr = PGROUNDUP(saddr + length);
     if(eaddr >= KERNBASE || saddr < MMAPBASE){
-      mapclr(&mmap_s);
+      mapclr(mmap_s);
       return MAP_FAILED;
     }
-    if(mapalloc((void*)saddr, length) < 0){
-      mapclr(&mmap_s);
+    if((int)mapalloc((void*)saddr, length) < 0){
+      mapclr(mmap_s);
       return MAP_FAILED;
     }
-    mmap_s.addr = saddr;
-    mmap_s.eaddr = eaddr;
+    mmap_s->addr = saddr;
+    mmap_s->eaddr = eaddr;
   } else {
     saddr = MMAPBASE;
-    eaddr = PGROUNDUP(saddr + length);
     while(eaddr < KERNBASE){
-      if(mapalloc((void*)saddr, length) >= 0)
+      if((int)mapalloc((void*)saddr, length) >= 0)
         break;
       saddr += PGSIZE;
       eaddr += PGSIZE;
     }
-    if(eaddr >= KERNBASE){
-      mapclr(&mmap_s);
-      return MAP_FAILED;
-    }
-    mmap_s.addr = saddr;
-    mmap_s.eaddr = eaddr;
+    mmap_s->addr = saddr;
+    mmap_s->eaddr = eaddr;
   }
   if(!(flags & MAP_ANONYMOUS)){
-    //TODO: file handling, following code is incorrect
-    //Should reopen same file that fd points to, so the user file
-    //is not changed
 
-
-    // struct file *fp;
-
-    // if(offset < 0)
-    //   return MAP_FAILED;
-    // if(fd < 0 || fd >= NOFILE || (fp=curproc->ofile[fd]) == 0)
-    //   return MAP_FAILED;
-    // // File and map protections must match
-    // if(!(fp->readable && (prot & PROT_READ)) || !(fp->writable && (prot & PROT_WRITE)))
-    //   return MAP_FAILED;
-    // mmap_s.fp = fp;
-    // mmap_s.offset = offset;
-    // mmap_s.fd = fd;
   }
-
-  mmap_s.sz = length;
-  mmap_s.prot = prot;
-  mmap_s.flags = flags;
-  mmap_s.mapped = 1;
-  
-  // Store the mmap_s structure in myproc() after successful mapping
-  curproc->mmaps[i] = mmap_s;
-
-  // cprintf("mmap: Successfully mapped memory - addr: 0x%x, length: %d, prot: %d, flags: %d\n", addr, length, prot, flags); //Debug print
+  mmap_s->sz = length;
+  mmap_s->prot = prot;
+  mmap_s->flags = flags;
+  mmap_s->mapped = 1;
 
   return addr;
 }
@@ -185,15 +151,12 @@ munmap(void *addr, size_t length)
 
       mapfree(m);
       curproc->nummaps -= 1;
-      curproc->mmaps[i] = (struct mmap_s){0};
       return 0;
     }
   }
 
-  if(i >= MAXMAPS){
-    cprintf("No maps to free\n");
+  if(i >= MAXMAPS)
     return -1;
-  }
 
   return 0;
 }
