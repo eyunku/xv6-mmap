@@ -8,6 +8,9 @@
 #include "x86.h"
 #include "traps.h"
 #include "spinlock.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 
 // Interrupt descriptor table (shared by all CPUs).
 struct gatedesc idt[256];
@@ -98,9 +101,9 @@ pgflthndlr(void)
   for(i = 0; i < MAXMAPS; i++){
     m = &curproc->mmaps[i];
 
-    if (!m->mapped)
+    if(!m->mapped)
       continue;
-    if (pgfltva < m->addr || pgfltva > m->eaddr + PGSIZE)
+    if(pgfltva < m->addr || pgfltva > m->eaddr + PGSIZE)
       continue;
     if(pgfltva < m->eaddr){
       goto allocate;
@@ -156,14 +159,20 @@ allocate:
     m->eaddr += PGSIZE;
 
   if(!(m->flags & MAP_ANONYMOUS)){
-    cprintf("file backed map\n");
+    int pgoff = (PGROUNDDOWN(pgfltva) - m->addr);
+    struct file *f = m->fp;
+    uint usroff = f->off;
+    ilock(f->ip);
+    readi(f->ip, (char*)PGROUNDDOWN(pgfltva), f->off + pgoff, PGSIZE);
+    iunlock(f->ip);
+    f->off = usroff;
   }
 
   lcr3(V2P(pgdir));
   return;
 
 segfault:
-  cprintf("Segmentation fault\n");
+  cprintf("Segmentation Fault\n");
   kill(curproc->pid);
   return;
 }

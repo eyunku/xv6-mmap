@@ -21,7 +21,6 @@ mapclr(struct mmap_s *m)
   m->prot = 0;
   m->fp = (struct file*)0;
   m->offset = (off_t)0;
-  m->fd = 0;
   m->mapped = 0;
 }
 
@@ -146,9 +145,17 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     mmap_s->addr = saddr;
     mmap_s->eaddr = eaddr;
   }
-  if(!(flags & MAP_ANONYMOUS)){
 
+  if(!(flags & MAP_ANONYMOUS)){
+    if(fd < 0 || fd >= NOFILE || (mmap_s->fp = curproc->ofile[fd]) == 0){
+      mapclr(mmap_s);
+      return MAP_FAILED;
+    }
+  } else {
+    mmap_s->fp = (struct file*)0;
+    mmap_s->offset = -1;
   }
+  
   mmap_s->sz = length;
   mmap_s->prot = prot;
   mmap_s->flags = flags;
@@ -177,6 +184,11 @@ munmap(void *addr, size_t length)
     if(!m->mapped)
       continue;
     if(m->addr <= (uint)addr && m->eaddr > (uint)addr){
+      if(!(m->flags & MAP_ANONYMOUS)){
+        struct file *f = m->fp;
+        f->off = 0;
+        filewrite(f, (char*)PGROUNDDOWN((uint)addr), length);
+      }
       mapfree(addr, length);
       m->addr = PGROUNDDOWN((uint)addr + length);
       if(m->addr == m->eaddr){

@@ -20,6 +20,5 @@ struct mmap_s {
     int prot;           // Memory read/write protection
     struct file* fp;    // File if mapping is not anonymous
     off_t offset;       // Offset into file
-    int fd;             // File descriptor of file
-    int mapped;          // If memory is mapped
+    int mapped;         // If memory is mapped
 };
