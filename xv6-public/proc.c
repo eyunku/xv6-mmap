@@ -201,9 +201,6 @@ fork(void)
   np->parent = curproc;
   *np->tf = *curproc->tf;
 
-  // Copy memory maps from proc.
-  copymmap();
-
   // Clear %eax so that fork returns 0 in the child.
   np->tf->eax = 0;
 
@@ -211,6 +208,35 @@ fork(void)
     if(curproc->ofile[i])
       np->ofile[i] = filedup(curproc->ofile[i]);
   np->cwd = idup(curproc->cwd);
+
+  // Copy memory maps from proc.
+  for(i = 0; i < MAXMAPS; i++){
+    struct mmap_s *curm = &curproc->mmaps[i];
+    struct mmap_s *nm = &np->mmaps[i];
+    if(!curm->mapped)
+      continue;
+    if(!(curm->flags & MAP_SHARED) || curm->flags & MAP_PRIVATE){
+      pde_t *npgdir = np->pgdir;
+      uint a = nm->addr;
+      pde_t *pde;
+      pte_t *pgtab;
+      pte_t *pte;
+      
+      for(; a < nm->eaddr; a += PGSIZE){
+        pde = &npgdir[PDX(a)];
+        if(*pde & PTE_P){
+          pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+        } else {
+          continue;
+        }
+        pte = &pgtab[PTX(a)];
+        if(*pte & PTE_P)
+          *pte = 0;
+      }
+    }
+    nm = copymmap(&curproc->mmaps[i]);
+    nm->fp = np->ofile[nm->fd];
+  }
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 

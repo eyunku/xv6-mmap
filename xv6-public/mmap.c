@@ -124,6 +124,7 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   }
 
   if(flags & MAP_FIXED){
+    //TODO: mapfixed needs to be able to overwrite existing mappings
     if(eaddr >= KERNBASE || saddr < MMAPBASE){
       mapclr(mmap_s);
       return MAP_FAILED;
@@ -152,8 +153,11 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
       mapclr(mmap_s);
       return MAP_FAILED;
     }
+    mmap_s->fd = fd;
+    mmap_s->offset = offset;
   } else {
     mmap_s->fp = (struct file*)0;
+    mmap_s->fd = -1;
     mmap_s->offset = -1;
   }
   
@@ -207,8 +211,17 @@ munmap(void *addr, size_t length)
 }
 
 struct mmap_s*
-copymmap()
+copymmap(struct mmap_s *m)
 {
-  // temp to suppress error
-  return (struct mmap_s*)0;
+  struct mmap_s *nm;
+  nm->addr = m->addr;
+  nm->eaddr = m->eaddr;
+  nm->sz = m->sz;
+  nm->flags = m->flags;
+  nm->prot = m->prot;
+  nm->fd = m->fd;
+  nm->offset = m->offset;
+  nm->mapped = m->mapped;
+  // Do not copy file pointer
+  return nm;
 }
