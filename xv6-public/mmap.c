@@ -189,7 +189,7 @@ munmap(void *addr, size_t length)
     if(!m->mapped)
       continue;
     if(m->addr <= (uint)addr && m->eaddr > (uint)addr){
-      if(!(m->flags & MAP_ANONYMOUS)){
+      if(!(m->flags & MAP_ANONYMOUS) && !(m->flags & MAP_PRIVATE)){
         struct file *f = m->fp;
         f->off = 0;
         filewrite(f, (char*)PGROUNDDOWN((uint)addr), length);
@@ -210,10 +210,9 @@ munmap(void *addr, size_t length)
   return 0;
 }
 
-struct mmap_s*
-copymmap(struct mmap_s *m)
+void
+copymmap(struct mmap_s *m, struct mmap_s *nm)
 {
-  struct mmap_s *nm;
   nm->addr = m->addr;
   nm->eaddr = m->eaddr;
   nm->sz = m->sz;
@@ -222,6 +221,4 @@ copymmap(struct mmap_s *m)
   nm->fd = m->fd;
   nm->offset = m->offset;
   nm->mapped = m->mapped;
-  // Do not copy file pointer
-  return nm;
 }

@@ -234,7 +234,7 @@ fork(void)
           *pte = 0;
       }
     }
-    nm = copymmap(&curproc->mmaps[i]);
+    copymmap(&curproc->mmaps[i], &np->mmaps[i]);
     nm->fp = np->ofile[nm->fd];
   }
 

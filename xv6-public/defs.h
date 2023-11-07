@@ -190,7 +190,7 @@ void            clearpteu(pde_t *pgdir, char *uva);
 // mmap.c
 void*           mmap(void*, size_t, int, int, int, off_t);
 int             munmap(void*, size_t);
-struct mmap_s*  copymmap();
+void            copymmap();
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
