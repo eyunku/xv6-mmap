@@ -124,7 +124,8 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     return MAP_FAILED;
 
   if(flags & MAP_FIXED){
-    //TODO: mapfixed needs to be able to overwrite existing mappings
+    // Naive MAP_FIXED. Works as if it is MAP_FIXED_NOREPLACE in std C
+    // implementation of mmap.
     if(eaddr >= KERNBASE || saddr < MMAPBASE){
       mapclr(mmap_s);
       return MAP_FAILED;
