@@ -154,6 +154,10 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
       mapclr(mmap_s);
       return MAP_FAILED;
     }
+    if(!mmap_s->fp->readable || mmap_s->fp->type == FD_PIPE){
+      mapclr(mmap_s);
+      return MAP_FAILED;
+    }
     mmap_s->fd = fd;
     mmap_s->offset = offset;
   } else {
