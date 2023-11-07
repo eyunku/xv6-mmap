@@ -98,7 +98,7 @@ clrpte(uint addr)
 }
 
 // Lazily map anonymously or file-backed into pgdir.
-// addr is forced to be page-aligned.
+// addr must be page-aligned.
 void*
 mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
@@ -107,6 +107,11 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   uint saddr = PGROUNDDOWN((uint)addr);
   uint eaddr = PGROUNDUP(saddr + length);
   int i;
+
+  if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED))
+    return MAP_FAILED;
+  if((uint)addr % PGSIZE != 0)
+    return MAP_FAILED;
 
   for(i = 0; i < MAXMAPS; i++){
     if(!(curproc->mmaps[i].mapped)){
@@ -117,11 +122,6 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   }
   if(i >= MAXMAPS)
     return MAP_FAILED;
-  
-  if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED)){
-    mapclr(mmap_s);
-    return MAP_FAILED;
-  }
 
   if(flags & MAP_FIXED){
     //TODO: mapfixed needs to be able to overwrite existing mappings
