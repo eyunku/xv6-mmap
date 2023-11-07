@@ -104,23 +104,19 @@ allocate:
     prot = prot | PTE_U;
   if(m->prot & PROT_WRITE)
     prot = prot | PTE_W;
-  while((uint)va < m->eaddr){
-    pde = &pgdir[PDX(va)];
-    if(*pde & PTE_P){
-      pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
-    } else {
-      if((pgtab = (pte_t*)kalloc()) == 0)
-        goto segfault;
-      memset(pgtab, 0, PGSIZE);
-      *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
-    }
-    pte = &pgtab[PTX(va)];
-    if(*pte & PTE_P)
-      panic("remap");
-    *pte = (uint)pa | prot | PTE_P;
-    va += PGSIZE;
-    pa += PGSIZE;
+  pde = &pgdir[PDX(va)];
+  if(*pde & PTE_P){
+    pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+  } else {
+    if((pgtab = (pte_t*)kalloc()) == 0)
+      goto segfault;
+    memset(pgtab, 0, PGSIZE);
+    *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
   }
+  pte = &pgtab[PTX(va)];
+  if(*pte & PTE_P)
+    panic("remap");
+  *pte = (uint)pa | prot | PTE_P;
   if(guard)
     m->eaddr += PGSIZE;
 
