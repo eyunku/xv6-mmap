@@ -59,31 +59,27 @@ mapfree(void* addr, size_t length)
   pte_t *pte;
 
   cprintf("end address:%d\n", PGROUNDUP((uint)addr + length));
-  while((uint)va < PGROUNDUP((uint)addr + length)){
+  for(; (uint)va < PGROUNDUP((uint)addr + length); va += PGSIZE){
     cprintf("current va:%d\n", va);
     pde = &curproc->pgdir[PDX(va)];
     if(*pde & PTE_P){
       pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
     } else {
       // No page table found. Expected due to lazy allocation.
-      va += PGSIZE;
       continue;
     }
     pte = &pgtab[PTX(va)];
     cprintf("walked pgdir successfully\n");
     cprintf("pte:%d\n", pte);
     cprintf("pte & PTE_P:%d\n", *pte & PTE_P);
-    if(!pte || !(*pte & PTE_P)){
-      va += PGSIZE;
+    if(!(*pte & PTE_P))
       continue;
-    }
     pa = PTE_ADDR(*pte);
     if(pa == 0)
       panic("kfree");
     char *v = P2V(pa);
     kfree(v);
     *pte = 0;
-    va += PGSIZE;
   }
 }
 
