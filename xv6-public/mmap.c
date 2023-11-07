@@ -9,6 +9,7 @@
 #include "fs.h"
 #include "file.h"
 #include "proc.h"
+#include "x86.h"
 
 void
 mapclr(struct mmap_s *m)
@@ -70,7 +71,7 @@ mapfree(void* addr, size_t length)
     }
     pte = &pgtab[PTX(va)];
     cprintf("walked pgdir successfully\n");
-    cprintf("pte:%d\n", pte);
+    cprintf("pte:%p\n", pte);
     cprintf("pte & PTE_P:%d\n", *pte & PTE_P);
     if(!(*pte & PTE_P))
       continue;
@@ -81,6 +82,28 @@ mapfree(void* addr, size_t length)
     kfree(v);
     *pte = 0;
   }
+}
+
+// Clear a page table entry by setting the PTE_P bit to zero.
+void
+clrpte(uint addr)
+{
+  pde_t *pgdir = myproc()->pgdir;
+  pde_t *pde;
+  pte_t *pgtab;
+  pte_t *pte;
+
+  pde = &pgdir[PDX(addr)];
+  if(*pde & PTE_P){
+    pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+  } else {
+    // No page table, page table entry does not exist.
+    return;
+  }
+  pte = &pgtab[PTX(addr)];
+  if(*pte & PTE_P)
+    *pte = 0;
+  return;
 }
 
 // Lazily map anonymously or file-backed into pgdir.
@@ -111,8 +134,8 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     mapclr(mmap_s);
     return MAP_FAILED;
   }
-  cprintf("Compatible private/shared flags\n");
 
+  cprintf("saddr:%p\teaddr:%p\n",saddr,eaddr);
   cprintf("FINDING ADDRESS IN MODE ");
   if(flags & MAP_FIXED){
     cprintf("MAP_FIXED...\n\n");
@@ -131,6 +154,7 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   } else {
     cprintf("MAP_ANONYMOUS...\n\n");
     saddr = MMAPBASE;
+    eaddr = PGROUNDUP(saddr + length);
     while(eaddr < KERNBASE){
       if((int)mapalloc((void*)saddr, length) >= 0)
         break;
@@ -148,10 +172,16 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   mmap_s->flags = flags;
   mmap_s->mapped = 1;
 
-  cprintf("check that mmap is properly setup:\naddr:%d\nend addr:%d\nsz:%d\nflags:%d\nprot:%d\nmapped:%d\n\n",
+  cprintf("check that mmap is properly setup:\naddr:%p\nend addr:%p\nsz:%d\nflags:%d\nprot:%d\nmapped:%d\n\n",
           mmap_s->addr,mmap_s->eaddr,mmap_s->sz,mmap_s->flags,mmap_s->prot,mmap_s->mapped);
 
-  return addr;
+  cprintf("Setting PTE_P bits to 0\n");
+  uint a;
+  for(a = mmap_s->addr; a < mmap_s->eaddr; a += PGSIZE)
+    clrpte(a);
+  lcr3(V2P(curproc->pgdir));
+
+  return (void*)saddr;
 }
 
 // Naive unmap that only allows unmapping from the front of a map.
@@ -160,6 +190,7 @@ int
 munmap(void *addr, size_t length)
 {
   cprintf("STARTING MUNMAP...\n\n");
+  cprintf("passed in address %p\n", addr);
   struct proc *curproc = myproc();
   struct mmap_s *m;
   int i;
