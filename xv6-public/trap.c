@@ -72,9 +72,9 @@ allocate:
   void* va = (void*)PGROUNDDOWN((uint)pgfltva);
   void* pa = (void*)kalloc();
   pde_t *pde;
+  pte_t *pgtab;
   pte_t *pte;
   int prot = 0;
-  int page = 0;
   
   if(!pa)
     goto segfault;
@@ -83,24 +83,21 @@ allocate:
   if(m->prot & PROT_WRITE)
     prot = prot | PTE_W;
   while((uint)va < m->eaddr){
-    cprintf("mapping page %d\n", page);
     pde = &pgdir[PDX(va)];
     if(*pde & PTE_P){
-      cprintf("found page directory entry\n");
-      pte = (pte_t*)P2V(PTE_ADDR(*pde));
+      pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
     } else {
-      if((pte = (pte_t*)kalloc()) == 0)
+      if((pgtab = (pte_t*)kalloc()) == 0)
         goto segfault;
-      memset(pte, 0, PGSIZE);
-      *pde = V2P(pte) | PTE_P | PTE_W | PTE_U;
-      cprintf("created page directory entry\n");
+      memset(pgtab, 0, PGSIZE);
+      *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
     }
+    pte = &pgtab[PTX(va)];
     if(*pte & PTE_P)
       panic("remap");
     *pte = (uint)pa | prot | PTE_P;
     va += PGSIZE;
     pa += PGSIZE;
-    page++;
   }
 
   if(!(m->flags & MAP_ANONYMOUS)){

@@ -32,8 +32,6 @@ mapalloc(void *addr, size_t length)
   uint eaddr = PGROUNDUP(saddr + length);
   int i;
 
-  cprintf("PGROUNDDOWN returns:%d\n", PGROUNDDOWN((uint)addr));
-  cprintf("eaddr should be:%d\n", PGROUNDUP(saddr + length));
   cprintf("calling mapalloc...\nsaddr:%d\teaddr:%d\n", saddr, eaddr);
   for(i = 0; i < MAXMAPS; i++){
     struct mmap_s *m = &curproc->mmaps[i];
@@ -49,27 +47,43 @@ mapalloc(void *addr, size_t length)
 }
 
 void
-mapfree(struct mmap_s *m)
+mapfree(void* addr, size_t length)
 {
+  cprintf("calling mapfree...\n");
+  cprintf("passed address %d\n", (uint)addr);
   struct proc *curproc = myproc();
-  uint pa, npage;
+  void* va = (void*)PGROUNDDOWN((uint)addr);
+  uint pa;
   pde_t *pde;
+  pte_t *pgtab;
   pte_t *pte;
-  int i;
 
-  npage = PGROUNDUP(m->sz) / PGSIZE;
-  for(i = 0; i < npage; i++){
-    uint pgaddr = m->addr + i*PGSIZE;
-    pde = &(curproc->pgdir[PDX(pgaddr)]);
-    if(!(*pde & PTE_P))
-      panic("double free");
-    pte = (pte_t*)P2V(PTE_ADDR(*pde));
+  cprintf("end address:%d\n", PGROUNDUP((uint)addr + length));
+  while((uint)va < PGROUNDUP((uint)addr + length)){
+    cprintf("current va:%d\n", va);
+    pde = &curproc->pgdir[PDX(va)];
+    if(*pde & PTE_P){
+      pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+    } else {
+      // No page table found. Expected due to lazy allocation.
+      va += PGSIZE;
+      continue;
+    }
+    pte = &pgtab[PTX(va)];
+    cprintf("walked pgdir successfully\n");
+    cprintf("pte:%d\n", pte);
+    cprintf("pte & PTE_P:%d\n", *pte & PTE_P);
+    if(!pte || !(*pte & PTE_P)){
+      va += PGSIZE;
+      continue;
+    }
     pa = PTE_ADDR(*pte);
     if(pa == 0)
       panic("kfree");
     char *v = P2V(pa);
     kfree(v);
     *pte = 0;
+    va += PGSIZE;
   }
 }
 
@@ -138,36 +152,34 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   mmap_s->flags = flags;
   mmap_s->mapped = 1;
 
-  cprintf("check that mmap is properly setup:\naddr:%d\nend addr:%d\nsz:%d\nflags:%d\nprot:%d\nmapped:%d\n",
+  cprintf("check that mmap is properly setup:\naddr:%d\nend addr:%d\nsz:%d\nflags:%d\nprot:%d\nmapped:%d\n\n",
           mmap_s->addr,mmap_s->eaddr,mmap_s->sz,mmap_s->flags,mmap_s->prot,mmap_s->mapped);
 
   return addr;
 }
 
-// Naive unmap that only allows unmapping of a single map.
+// Naive unmap that only allows unmapping from the front of a map.
 // Will cause heap fragmentation.
 int 
 munmap(void *addr, size_t length)
 {
+  cprintf("STARTING MUNMAP...\n\n");
   struct proc *curproc = myproc();
   struct mmap_s *m;
   int i;
 
-  if((uint)addr % PGSIZE != 0)
-    return -1;
-
   for(i = 0; i < MAXMAPS; i++){
     m = &curproc->mmaps[i];
-
+    cprintf("checking map %d\n", i);
     if(!m->mapped)
       continue;
-
-    if(m->addr == (uint)addr){
-      if (m->sz != length)
-        return -1;
-
-      mapfree(m);
-      curproc->nummaps -= 1;
+    if(m->addr <= (uint)addr && m->eaddr > (uint)addr){
+      mapfree(addr, length);
+      m->addr = PGROUNDDOWN((uint)addr + length);
+      if(m->addr == m->eaddr){
+        mapclr(m);
+        curproc->nummaps -= 1;
+      }
       return 0;
     }
   }
