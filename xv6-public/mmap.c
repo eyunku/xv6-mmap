@@ -36,7 +36,8 @@ mapalloc(void *addr, size_t length)
     struct mmap_s *m = &curproc->mmaps[i];
     if(!m->mapped)
       continue;
-    if(saddr >= m->addr || eaddr < m->eaddr){
+    if((saddr >= m->addr && saddr < m->eaddr) ||
+        (eaddr >= m->addr && eaddr < m->eaddr)){
       mapclr(m);
       return MAP_FAILED;
     }

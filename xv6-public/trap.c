@@ -37,55 +37,21 @@ idtinit(void)
 }
 
 int
-chkguard(uint pgfltva)
+chkguard(struct mmap_s *m, uint pgfltva)
 {
-  pde_t *pgdir = myproc()->pgdir;
-  int g, g2;
-  pde_t *pdeg;
-  pte_t *pgtabg;
-  pte_t *pteg;
-  pde_t *pdeg2;
-  pte_t *pgtabg2;
-  pte_t *pteg2;
+  struct proc *curproc = myproc();
+  int i;
 
-  g = g2 = 0;
-  pdeg = &pgdir[PDX(pgfltva)];
-  if((*pdeg & PTE_P)){
-    pgtabg = (pte_t*)P2V(PTE_ADDR(*pdeg));
-  } else {
-    // Empty guard page table. Good to allocate.
-    g = 1;
-    goto margin;
+  for(i = 0; i < MAXMAPS; i++){
+    struct mmap_s *guard = &curproc->mmaps[i];
+    if(!guard->mapped || m == guard)
+      continue;
+    if(pgfltva >= guard->addr && pgfltva < guard->eaddr)
+      return -1;
+    if(pgfltva + PGSIZE >= guard->addr && pgfltva < guard->eaddr)
+      return -1;
   }
-  pteg = &pgtabg[PTX(pgfltva)];
-  if(*pteg & PTE_P){
-    goto margin;
-  } else {
-    // Empty guard page. Good to allocate.
-    g = 1;
-    goto margin;
-  }
-
-margin:
-  pdeg2 = &pgdir[PDX(pgfltva)];
-  if((*pdeg2 & PTE_P)){
-    pgtabg2 = (pte_t*)P2V(PTE_ADDR(*pdeg2));
-  } else {
-    // Empty margin page table. Good to allocate.
-    g2 = 1;
-    goto chkguard;
-  }
-  pteg2 = &pgtabg2[PTX(pgfltva)];
-  if(*pteg2 & PTE_P){
-    goto chkguard;
-  } else {
-    // Empty margin page. Good to allocate.
-    g2 = 1;
-    goto chkguard;
-  }
-
-chkguard:
-  return g & g2;
+  return 0;
 }
 
 void 
@@ -103,17 +69,17 @@ pgflthndlr(void)
 
     if(!m->mapped)
       continue;
-    if(pgfltva < m->addr || pgfltva > m->eaddr + PGSIZE)
+    if(pgfltva < m->addr || pgfltva >= m->eaddr + PGSIZE)
       continue;
     if(pgfltva < m->eaddr){
       goto allocate;
     }
     if(m->flags & MAP_GROWSUP){
       guard = 1;
-      if(chkguard(pgfltva)){
-        goto allocate;
-      } else {
+      if(chkguard(m, pgfltva) < 0){
         goto segfault;
+      } else {
+        goto allocate;
       }
     } else {
       goto segfault;
