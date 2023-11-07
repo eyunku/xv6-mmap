@@ -181,6 +181,7 @@ growproc(int n)
 int
 fork(void)
 {
+  cprintf("FORKING...\n\n");
   int i, pid;
   struct proc *np;
   struct proc *curproc = myproc();
@@ -236,6 +237,9 @@ fork(void)
     }
     copymmap(&curproc->mmaps[i], &np->mmaps[i]);
     nm->fp = np->ofile[nm->fd];
+
+    cprintf("check that child mmap is properly setup:\naddr:%p\nend addr:%p\nsz:%d\nflags:%d\nprot:%d\nmapped:%d\n\n",
+          nm->addr,nm->eaddr,nm->sz,nm->flags,nm->prot,nm->mapped);
   }
 
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));

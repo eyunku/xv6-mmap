@@ -57,6 +57,8 @@ chkguard(struct mmap_s *m, uint pgfltva)
 void 
 pgflthndlr(void)
 {
+  cprintf("HANLDING PGFAULT OF PROC %d...\n\n", myproc()->pid);
+  
   struct proc *curproc = myproc();
   pde_t *pgdir = curproc->pgdir;
   uint pgfltva = rcr2();
@@ -64,6 +66,7 @@ pgflthndlr(void)
   int guard = 0;
   int i;
 
+  cprintf("PGFAULT happened at %p\n",pgfltva);
   for(i = 0; i < MAXMAPS; i++){
     m = &curproc->mmaps[i];
 
@@ -77,16 +80,19 @@ pgflthndlr(void)
     if(m->flags & MAP_GROWSUP){
       guard = 1;
       if(chkguard(m, pgfltva) < 0){
+        cprintf("MAP_GROWSUP but unable to grow\n");
         goto segfault;
       } else {
         goto allocate;
       }
     } else {
+      cprintf("Not MAP_GROWSUP but in guard page\n");
       goto segfault;
     }
     goto allocate;
   }
 
+  cprintf("Unable to find address within mappings\n");
   if(i >= MAXMAPS)
     goto segfault;
 
@@ -116,6 +122,7 @@ allocate:
   pte = &pgtab[PTX(va)];
   if(*pte & PTE_P)
     panic("remap");
+  cprintf("Assigning pte with address %p\n", pa);
   *pte = (uint)pa | prot | PTE_P;
   if(guard)
     m->eaddr += PGSIZE;
@@ -128,6 +135,27 @@ allocate:
     readi(f->ip, (char*)PGROUNDDOWN(pgfltva), f->off + pgoff, PGSIZE);
     iunlock(f->ip);
     f->off = usroff;
+  }
+
+  if(!(m->flags & MAP_SHARED) || m->flags & MAP_PRIVATE){
+    cprintf("Child is private\n");
+    struct proc *parent = curproc->parent;
+    pde_t *ppde;
+    pte_t *ppgtab;
+    pte_t *ppte;
+    void* pva = (void*)0;
+
+    ppde = &parent->pgdir[PDX(va)];
+    if(*ppde & PTE_P){
+      ppgtab = (pte_t*)P2V(PTE_ADDR(*ppde));
+      ppte = &ppgtab[PTX(va)];
+      if(*ppte & PTE_P){
+        pva = (void*)P2V(PTE_ADDR(*ppte));
+      }
+    }
+    // cprintf("Parent physical address: %p\tChild physical address:%p\n",pva,va);
+    if(pva)
+      memmove(va, pva, PGSIZE);
   }
 
   lcr3(V2P(pgdir));

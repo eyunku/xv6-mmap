@@ -98,10 +98,11 @@ clrpte(uint addr)
 }
 
 // Lazily map anonymously or file-backed into pgdir.
-// addr must be page-aligned.
+// addr is forced to be page-aligned.
 void*
 mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
+  cprintf("STARTING MMAP...\n\n");
   struct proc *curproc = myproc();
   struct mmap_s *mmap_s;
   uint saddr = PGROUNDDOWN((uint)addr);
@@ -165,6 +166,9 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   mmap_s->prot = prot;
   mmap_s->flags = flags;
   mmap_s->mapped = 1;
+
+  cprintf("check that mmap is properly setup:\naddr:%p\nend addr:%p\nsz:%d\nflags:%d\nprot:%d\nmapped:%d\n\n",
+          mmap_s->addr,mmap_s->eaddr,mmap_s->sz,mmap_s->flags,mmap_s->prot,mmap_s->mapped);
 
   // Make sure all the PTE_P bits are cleared.
   uint a;
