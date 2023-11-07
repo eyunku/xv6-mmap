@@ -9,6 +9,7 @@
 #include "fs.h"
 #include "file.h"
 #include "proc.h"
+#include "x86.h"
 
 void
 mapclr(struct mmap_s *m)
@@ -34,31 +35,37 @@ mapalloc(void *addr, size_t length)
 
   for(i = 0; i < MAXMAPS; i++){
     struct mmap_s *m = &curproc->mmaps[i];
+    if(!m->mapped)
+      continue;
     if(saddr >= m->addr || eaddr < m->eaddr){
       mapclr(m);
       return MAP_FAILED;
     }
   }
-
   return addr;
 }
 
 void
-mapfree(struct mmap_s *m)
+mapfree(void* addr, size_t length)
 {
   struct proc *curproc = myproc();
-  uint pa, npage;
+  void* va = (void*)PGROUNDDOWN((uint)addr);
+  uint pa;
   pde_t *pde;
+  pte_t *pgtab;
   pte_t *pte;
-  int i;
 
-  npage = PGROUNDUP(m->sz) / PGSIZE;
-  for(i = 0; i < npage; i++){
-    uint pgaddr = m->addr + i*PGSIZE;
-    pde = &(curproc->pgdir[PDX(pgaddr)]);
-    if(!(*pde & PTE_P))
-      panic("double free");
-    pte = (pte_t*)P2V(PTE_ADDR(*pde));
+  for(; (uint)va < PGROUNDUP((uint)addr + length); va += PGSIZE){
+    pde = &curproc->pgdir[PDX(va)];
+    if(*pde & PTE_P){
+      pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+    } else {
+      // No page table found. Expected due to lazy allocation.
+      continue;
+    }
+    pte = &pgtab[PTX(va)];
+    if(!(*pte & PTE_P))
+      continue;
     pa = PTE_ADDR(*pte);
     if(pa == 0)
       panic("kfree");
@@ -66,6 +73,28 @@ mapfree(struct mmap_s *m)
     kfree(v);
     *pte = 0;
   }
+}
+
+// Clear a page table entry by setting the PTE_P bit to zero.
+void
+clrpte(uint addr)
+{
+  pde_t *pgdir = myproc()->pgdir;
+  pde_t *pde;
+  pte_t *pgtab;
+  pte_t *pte;
+
+  pde = &pgdir[PDX(addr)];
+  if(*pde & PTE_P){
+    pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
+  } else {
+    // No page table, page table entry does not exist.
+    return;
+  }
+  pte = &pgtab[PTX(addr)];
+  if(*pte & PTE_P)
+    *pte = 0;
+  return;
 }
 
 // Lazily map anonymously or file-backed into pgdir.
@@ -107,6 +136,7 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
     mmap_s->eaddr = eaddr;
   } else {
     saddr = MMAPBASE;
+    eaddr = PGROUNDUP(saddr + length);
     while(eaddr < KERNBASE){
       if((int)mapalloc((void*)saddr, length) >= 0)
         break;
@@ -124,10 +154,16 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   mmap_s->flags = flags;
   mmap_s->mapped = 1;
 
-  return addr;
+  // Make sure all the PTE_P bits are cleared.
+  uint a;
+  for(a = mmap_s->addr; a < mmap_s->eaddr; a += PGSIZE)
+    clrpte(a);
+  lcr3(V2P(curproc->pgdir));
+
+  return (void*)saddr;
 }
 
-// Naive unmap that only allows unmapping of a single map.
+// Naive unmap that only allows unmapping from the front of a map.
 // Will cause heap fragmentation.
 int 
 munmap(void *addr, size_t length)
@@ -136,21 +172,17 @@ munmap(void *addr, size_t length)
   struct mmap_s *m;
   int i;
 
-  if((uint)addr % PGSIZE != 0)
-    return -1;
-
   for(i = 0; i < MAXMAPS; i++){
     m = &curproc->mmaps[i];
-
     if(!m->mapped)
       continue;
-
-    if(m->addr == (uint)addr){
-      if (m->sz != length)
-        return -1;
-
-      mapfree(m);
-      curproc->nummaps -= 1;
+    if(m->addr <= (uint)addr && m->eaddr > (uint)addr){
+      mapfree(addr, length);
+      m->addr = PGROUNDDOWN((uint)addr + length);
+      if(m->addr == m->eaddr){
+        mapclr(m);
+        curproc->nummaps -= 1;
+      }
       return 0;
     }
   }

@@ -33,34 +33,87 @@ idtinit(void)
   lidt(idt, sizeof(idt));
 }
 
+int
+chkguard(uint pgfltva)
+{
+  pde_t *pgdir = myproc()->pgdir;
+  int g, g2;
+  pde_t *pdeg;
+  pte_t *pgtabg;
+  pte_t *pteg;
+  pde_t *pdeg2;
+  pte_t *pgtabg2;
+  pte_t *pteg2;
+
+  g = g2 = 0;
+  pdeg = &pgdir[PDX(pgfltva)];
+  if((*pdeg & PTE_P)){
+    pgtabg = (pte_t*)P2V(PTE_ADDR(*pdeg));
+  } else {
+    // Empty guard page table. Good to allocate.
+    g = 1;
+    goto margin;
+  }
+  pteg = &pgtabg[PTX(pgfltva)];
+  if(*pteg & PTE_P){
+    goto margin;
+  } else {
+    // Empty guard page. Good to allocate.
+    g = 1;
+    goto margin;
+  }
+
+margin:
+  pdeg2 = &pgdir[PDX(pgfltva)];
+  if((*pdeg2 & PTE_P)){
+    pgtabg2 = (pte_t*)P2V(PTE_ADDR(*pdeg2));
+  } else {
+    // Empty margin page table. Good to allocate.
+    g2 = 1;
+    goto chkguard;
+  }
+  pteg2 = &pgtabg2[PTX(pgfltva)];
+  if(*pteg2 & PTE_P){
+    goto chkguard;
+  } else {
+    // Empty margin page. Good to allocate.
+    g2 = 1;
+    goto chkguard;
+  }
+
+chkguard:
+  return g & g2;
+}
+
 void 
-pgflthndlr(void) {
+pgflthndlr(void)
+{
   struct proc *curproc = myproc();
   pde_t *pgdir = curproc->pgdir;
   uint pgfltva = rcr2();
   struct mmap_s *m;
+  int guard = 0;
   int i;
 
-  for (i = 0; i < MAXMAPS; i++) {
+  for(i = 0; i < MAXMAPS; i++){
     m = &curproc->mmaps[i];
 
     if (!m->mapped)
       continue;
     if (pgfltva < m->addr || pgfltva > m->eaddr + PGSIZE)
       continue;
-    if (pgfltva > m->eaddr) {
-      if (m->flags & MAP_GROWSUP) {
-        pde_t *pdeg;
-        pde_t *pdeg2;
-
-        pdeg = &pgdir[PDX(pgfltva)];
-        pdeg2 = &pgdir[PDX(pgfltva + PGSIZE)];
-        if ((*pdeg & PTE_P) || (*pdeg2 & PTE_P))
-          goto segfault;
+    if(pgfltva < m->eaddr){
+      goto allocate;
+    }
+    if(m->flags & MAP_GROWSUP){
+      guard = 1;
+      if(chkguard(pgfltva)){
         goto allocate;
       } else {
-        continue;
+        goto segfault;
       }
+    } else {
+      goto segfault;
     }
     goto allocate;
   }
@@ -70,8 +123,9 @@ pgflthndlr(void) {
 
 allocate:
   void* va = (void*)PGROUNDDOWN((uint)pgfltva);
-  void* pa = (void*)kalloc();
+  void* pa = (void*)V2P((uint)kalloc());
   pde_t *pde;
+  pte_t *pgtab;
   pte_t *pte;
   int prot = 0;
   
@@ -84,23 +138,28 @@ allocate:
   while((uint)va < m->eaddr){
     pde = &pgdir[PDX(va)];
     if(*pde & PTE_P){
-      pte = (pte_t*)P2V(PTE_ADDR(*pde));
+      pgtab = (pte_t*)P2V(PTE_ADDR(*pde));
     } else {
-      if((pte = (pte_t*)kalloc()) == 0)
+      if((pgtab = (pte_t*)kalloc()) == 0)
         goto segfault;
-      memset(pte, 0, PGSIZE);
-      *pde = V2P(pte) | PTE_P | PTE_W | PTE_U;
+      memset(pgtab, 0, PGSIZE);
+      *pde = V2P(pgtab) | PTE_P | PTE_W | PTE_U;
     }
+    pte = &pgtab[PTX(va)];
     if(*pte & PTE_P)
       panic("remap");
     *pte = (uint)pa | prot | PTE_P;
     va += PGSIZE;
     pa += PGSIZE;
   }
+  if(guard)
+    m->eaddr += PGSIZE;
 
   if(!(m->flags & MAP_ANONYMOUS)){
-
+    cprintf("file backed map\n");
   }
+
+  lcr3(V2P(pgdir));
   return;
 
 segfault:
