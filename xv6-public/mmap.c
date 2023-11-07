@@ -32,14 +32,19 @@ mapalloc(void *addr, size_t length)
   uint eaddr = PGROUNDUP(saddr + length);
   int i;
 
+  cprintf("PGROUNDDOWN returns:%d\n", PGROUNDDOWN((uint)addr));
+  cprintf("eaddr should be:%d\n", PGROUNDUP(saddr + length));
+  cprintf("calling mapalloc...\nsaddr:%d\teaddr:%d\n", saddr, eaddr);
   for(i = 0; i < MAXMAPS; i++){
     struct mmap_s *m = &curproc->mmaps[i];
+    if(!m->mapped)
+      continue;
     if(saddr >= m->addr || eaddr < m->eaddr){
       mapclr(m);
       return MAP_FAILED;
     }
   }
-
+  cprintf("addr:%d\n", (uint)addr);
   return addr;
 }
 
@@ -73,12 +78,14 @@ mapfree(struct mmap_s *m)
 void*
 mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
 {
+  cprintf("STARTING MMAP...\n\n");
   struct proc *curproc = myproc();
   struct mmap_s *mmap_s;
   uint saddr = PGROUNDDOWN((uint)addr);
   uint eaddr = PGROUNDUP(saddr + length);
   int i;
 
+  cprintf("Finding open map...");
   for(i = 0; i < MAXMAPS; i++){
     if(!(curproc->mmaps[i].mapped)){
       mmap_s = &curproc->mmaps[i];
@@ -88,24 +95,31 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   }
   if(i >= MAXMAPS)
     return MAP_FAILED;
+  cprintf("\t\topen map found\n");
   
   if(!(flags & MAP_PRIVATE) && !(flags & MAP_SHARED)){
     mapclr(mmap_s);
     return MAP_FAILED;
   }
+  cprintf("Compatible private/shared flags\n");
 
+  cprintf("FINDING ADDRESS IN MODE ");
   if(flags & MAP_FIXED){
+    cprintf("MAP_FIXED...\n\n");
     if(eaddr >= KERNBASE || saddr < MMAPBASE){
+      cprintf("Outside of accessible address\n");
       mapclr(mmap_s);
       return MAP_FAILED;
     }
     if((int)mapalloc((void*)saddr, length) < 0){
+      cprintf("mapalloc call failed\n");
       mapclr(mmap_s);
       return MAP_FAILED;
     }
     mmap_s->addr = saddr;
     mmap_s->eaddr = eaddr;
   } else {
+    cprintf("MAP_ANONYMOUS...\n\n");
     saddr = MMAPBASE;
     while(eaddr < KERNBASE){
       if((int)mapalloc((void*)saddr, length) >= 0)
@@ -123,6 +137,9 @@ mmap(void *addr, size_t length, int prot, int flags, int fd, off_t offset)
   mmap_s->prot = prot;
   mmap_s->flags = flags;
   mmap_s->mapped = 1;
+
+  cprintf("check that mmap is properly setup:\naddr:%d\nend addr:%d\nsz:%d\nflags:%d\nprot:%d\nmapped:%d\n",
+          mmap_s->addr,mmap_s->eaddr,mmap_s->sz,mmap_s->flags,mmap_s->prot,mmap_s->mapped);
 
   return addr;
 }
