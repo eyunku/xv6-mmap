@@ -124,6 +124,7 @@ allocate:
     int pgoff = (PGROUNDDOWN(pgfltva) - m->addr);
     struct file *f = m->fp;
     uint usroff = f->off;
+    f->off = m->offset;
     ilock(f->ip);
     readi(f->ip, (char*)PGROUNDDOWN(pgfltva), f->off + pgoff, PGSIZE);
     iunlock(f->ip);
