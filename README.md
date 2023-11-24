@@ -10,7 +10,7 @@ The following are the available *prot* flags:
 * **PROT_WRITE**:
 &nbsp;Pages may be written.
 
-Notably, **PROT_NONE** is not an available flag, and is only applied implicitly when the *prot* argument is blank.
+Notably, **PROT_NONE** is not an available flag, and is applied implicitly when the *prot* argument is blank.
 
 The following are the available *flags* flags:
 * **MAP_ANONYMOUS**:
@@ -19,7 +19,7 @@ The following are the available *flags* flags:
 &nbsp;The mapping is shared, that is, a child process created by the fork() system call will point to the same memory mappings as the parent. Any changes done by the child or parent are reflected in the other.
 * **MAP_PRIVATE**:
 &nbsp;The mapping is not shared. Child processes created by the fork() system call will initially copy over the contents of the parent's mappings, but changes will not be propagated from child to parent or vice versa.
-Mutually exclusive with **MAP_SHARED**, and using both **MAP_SHARED** and **MAP_PRIVATE** will cause an error.
+Mutually exclusive with **MAP_SHARED**; using both **MAP_SHARED** and **MAP_PRIVATE** will cause an error.
 * **MAP_GROWSUP**:
 &nbsp;Memory mappings in this implementation are placed in the heap. Operates similarly to the **MAP_GROWSDOWN** flag from standard C mmap, with two key differences: the mapping grows upwards, and the return address is not changed.
 * **MAP_FIXED**:
